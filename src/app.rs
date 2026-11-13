@@ -621,6 +621,7 @@ impl App {
             return;
         };
         self.game = game;
+        self.log = self.game.history.iter().map(|&(by, cell)| (by, self.game.stone_for(by), cell)).collect();
         self.cursor = self.game.history.last().map_or(self.cursor, |&(_, cell)| cell);
         self.placement = if position > previous {
             self.game.history.last().map(|&(by, cell)| Placement {

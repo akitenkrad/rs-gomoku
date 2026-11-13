@@ -45,6 +45,32 @@ fn replay_navigation_matches_game_at_at_every_boundary() {
 }
 
 #[test]
+fn replay_move_log_follows_the_replay_position() {
+    let record = sample_record();
+    let mut app = App::new_replay(record.clone(), Duration::from_millis(500), true, false, Lang::En);
+    assert!(app.log.is_empty());
+
+    app.on_key(key(KeyCode::Right));
+    app.on_key(key(KeyCode::Right));
+    app.on_key(key(KeyCode::Right));
+    assert_eq!(
+        app.log,
+        vec![
+            (Side::Human, Stone::Black, 0),
+            (Side::Cpu, Stone::White, 9),
+            (Side::Human, Stone::Black, 1)
+        ]
+    );
+
+    app.on_key(key(KeyCode::Left));
+    assert_eq!(app.log.len(), 2);
+    app.on_key(key(KeyCode::End));
+    assert_eq!(app.log.len(), record.moves.len());
+    app.on_key(key(KeyCode::Home));
+    assert!(app.log.is_empty());
+}
+
+#[test]
 fn replay_autoplay_waits_for_interval() {
     let record = sample_record();
     let mut app = App::new_replay(record, Duration::from_millis(100), false, false, Lang::En);
