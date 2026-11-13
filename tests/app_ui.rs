@@ -2,10 +2,13 @@ use std::time::{Duration, Instant};
 
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
+use ratatui::buffer::Buffer;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::layout::Rect;
+use ratatui::style::Modifier;
 use ratatui::text::Line;
 use rs_gomoku::ai::Difficulty;
-use rs_gomoku::app::{App, Mode, Screen};
+use rs_gomoku::app::{App, Mode, Particle, Screen};
 use rs_gomoku::game::{Outcome, Rule, Side, Stone};
 use rs_gomoku::i18n::{Lang, Msg};
 use rs_gomoku::record::{Record, parse};
@@ -123,15 +126,18 @@ fn cpu_search_never_blocks_tick_and_stale_results_are_discarded() {
     assert!(app.game.history.is_empty());
 }
 
-fn render(app: &App, width: u16, height: u16) -> String {
+fn render_buffer(app: &App, width: u16, height: u16) -> Buffer {
     let backend = TestBackend::new(width, height);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|frame| ui::draw(frame, app)).unwrap();
-    let buffer = terminal.backend().buffer();
+    terminal.backend().buffer().clone()
+}
+
+fn buffer_text(buffer: &Buffer) -> String {
     let mut output = String::new();
-    for y in 0..height {
+    for y in 0..buffer.area.height {
         let mut skip = 0;
-        for x in 0..width {
+        for x in 0..buffer.area.width {
             if skip > 0 {
                 skip -= 1;
                 continue;
@@ -147,9 +153,242 @@ fn render(app: &App, width: u16, height: u16) -> String {
         output.push('\n');
     }
     for line in output.lines() {
-        assert!(Line::raw(line).width() <= usize::from(width), "line exceeds {width} columns: {line:?}");
+        assert!(
+            Line::raw(line).width() <= usize::from(buffer.area.width),
+            "line exceeds {} columns: {line:?}",
+            buffer.area.width
+        );
     }
     output
+}
+
+fn render(app: &App, width: u16, height: u16) -> String {
+    buffer_text(&render_buffer(app, width, height))
+}
+
+fn board_rect(width: u16, height: u16, size: usize) -> Rect {
+    let middle = Rect::new(0, 3, width, height - 7);
+    let board_area = Rect::new(middle.x, middle.y, middle.width - 34, middle.height);
+    let board_width = size as u16 * 3 + 5;
+    let board_height = size as u16 + 3;
+    Rect::new(
+        board_area.x + (board_area.width - board_width) / 2,
+        board_area.y + (board_area.height - board_height) / 2,
+        board_width,
+        board_height,
+    )
+}
+
+fn find_text_x(buffer: &Buffer, text: &str) -> Option<u16> {
+    find_text_position(buffer, text).map(|(x, _)| x)
+}
+
+fn find_text_position(buffer: &Buffer, text: &str) -> Option<(u16, u16)> {
+    for y in 0..buffer.area.height {
+        for start_x in 0..buffer.area.width {
+            let mut x = start_x;
+            let mut matches = true;
+            for character in text.chars() {
+                if x >= buffer.area.width || buffer[(x, y)].symbol() != character.to_string() {
+                    matches = false;
+                    break;
+                }
+                x += Line::raw(character.to_string()).width() as u16;
+            }
+            if matches {
+                return Some((start_x, y));
+            }
+        }
+    }
+    None
+}
+
+#[test]
+fn game_over_result_starts_at_side_top_and_move_log_keeps_last_move() {
+    for lang in [Lang::En, Lang::Ja] {
+        for replay in [false, true] {
+            let mut app = if replay {
+                let mut app = App::new_replay(sample_record(), Duration::from_secs(1), true, false, lang);
+                app.on_key(key(KeyCode::End));
+                app
+            } else {
+                let mut app = winning_app(lang);
+                app.log = vec![
+                    (Side::Human, Stone::Black, 0),
+                    (Side::Cpu, Stone::White, 9),
+                    (Side::Human, Stone::Black, 1),
+                    (Side::Cpu, Stone::White, 10),
+                    (Side::Human, Stone::Black, 2),
+                    (Side::Cpu, Stone::White, 11),
+                    (Side::Human, Stone::Black, 3),
+                    (Side::Cpu, Stone::White, 12),
+                    (Side::Human, Stone::Black, 4),
+                ];
+                app
+            };
+            app.frame = 0;
+
+            let (width, height) = ui::minimum_terminal_size(9, false);
+            let buffer = render_buffer(&app, width, height);
+            let screen = buffer_text(&buffer);
+            let (result_x, result_y) =
+                find_text_position(&buffer, Msg::Result.text(lang)).unwrap_or_else(|| panic!("result title missing:\n{screen}"));
+            let (log_x, log_y) = find_text_position(&buffer, Msg::MoveLog.text(lang)).unwrap_or_else(|| panic!("move log missing:\n{screen}"));
+
+            assert!(result_x >= width - 34, "result panel overlaps board:\n{screen}");
+            assert_eq!(result_y, 3, "result panel must start at the side-column top:\n{screen}");
+            assert!(log_x >= width - 34 && log_y > result_y, "move log must fill below result:\n{screen}");
+            assert!(
+                screen.contains(&format!("{} {} e1", app.side_name(Side::Human), Stone::Black.label(lang))),
+                "last move missing from game-over log:\n{screen}"
+            );
+        }
+    }
+}
+
+fn winning_app(lang: Lang) -> App {
+    let mut app = App::new(9, Rule::Freestyle).with_lang(lang);
+    app.start();
+    for cell in [0, 9, 1, 10, 2, 11, 3, 12, 4] {
+        app.game.play(cell).unwrap();
+    }
+    app.display_outcome = app.game.outcome();
+    app.screen = Screen::GameOver;
+    app
+}
+
+#[test]
+fn adjacent_stones_keep_grid_separators_board_background_and_last_move_marker() {
+    let mut app = App::new(9, Rule::Freestyle);
+    app.start();
+    for cell in [0, 1, 9, 18] {
+        app.game.play(cell).unwrap();
+    }
+
+    let (width, height) = ui::minimum_terminal_size(9, false);
+    let buffer = render_buffer(&app, width, height);
+    let board = board_rect(width, height, 9);
+    let origin_x = board.x + 4;
+    let origin_y = board.y + 2;
+    let board_bg = buffer[(origin_x + 6, origin_y)].bg;
+
+    for cell in [0, 1, 9, 18] {
+        let x = origin_x + (cell % 9) as u16 * 3;
+        let y = origin_y + (cell / 9) as u16;
+        assert_eq!(buffer[(x, y)].symbol(), "●", "stone {cell} was not a separate glyph");
+        for side_x in x - 1..=x + 1 {
+            assert_eq!(buffer[(side_x, y)].bg, board_bg, "stone {cell} painted its background");
+        }
+    }
+    assert_eq!(buffer[(origin_x + 1, origin_y)].symbol(), "─");
+    assert_eq!(buffer[(origin_x + 2, origin_y)].symbol(), "─");
+
+    let last_x = origin_x;
+    let last_y = origin_y + 2;
+    assert!(
+        buffer[(last_x, last_y)].modifier.contains(Modifier::UNDERLINED),
+        "last move needs a visible marker"
+    );
+}
+
+#[test]
+fn game_over_result_is_in_side_column_and_winning_line_remains_visible() {
+    for lang in [Lang::En, Lang::Ja] {
+        for replay in [false, true] {
+            let mut app = if replay {
+                let mut app = App::new_replay(sample_record(), Duration::from_secs(1), true, false, lang);
+                app.on_key(key(KeyCode::End));
+                app
+            } else {
+                winning_app(lang)
+            };
+            app.frame = 0;
+            let (width, height) = ui::minimum_terminal_size(9, false);
+            let buffer = render_buffer(&app, width, height);
+            let screen = buffer_text(&buffer);
+            let side_x = width - 34;
+            let result_x = find_text_x(&buffer, Msg::Result.text(lang)).unwrap_or_else(|| panic!("result title missing:\n{screen}"));
+            assert!(result_x >= side_x, "result panel overlaps the board:\n{screen}");
+
+            let board = board_rect(width, height, 9);
+            let origin_x = board.x + 4;
+            let origin_y = board.y + 2;
+            for cell in 0..5 {
+                let x = origin_x + cell as u16 * 3;
+                assert_eq!(buffer[(x, origin_y)].symbol(), "●", "winning cell {cell} hidden:\n{screen}");
+            }
+
+            let expected_headline = lang.winner("Alice");
+            if replay {
+                assert!(screen.contains(&expected_headline), "{screen}");
+                assert!(screen.contains(Msg::ReplayBackQuit.text(lang)), "{screen}");
+            } else {
+                assert!(screen.contains(Msg::HumanWins.text(lang)), "{screen}");
+                assert!(screen.contains(Msg::NewGameSave.text(lang)), "{screen}");
+            }
+            assert!(screen.contains(&lang.moves_count(9)), "{screen}");
+        }
+    }
+}
+
+#[test]
+fn replay_hides_play_only_panels_while_normal_play_keeps_them() {
+    for lang in [Lang::En, Lang::Ja] {
+        let (width, height) = ui::minimum_terminal_size(9, false);
+        let mut normal = App::new(9, Rule::Freestyle).with_lang(lang);
+        normal.start();
+        let normal = render(&normal, width, height);
+        assert!(normal.contains(Msg::Difficulty.text(lang)), "{normal}");
+        assert!(normal.contains(Msg::SessionScore.text(lang)), "{normal}");
+
+        let replay = App::new_replay(sample_record(), Duration::from_secs(1), true, false, lang);
+        let replay = render(&replay, width, height);
+        assert!(!replay.contains(Msg::Difficulty.text(lang)), "{replay}");
+        assert!(!replay.contains(Msg::SessionScore.text(lang)), "{replay}");
+    }
+}
+
+#[test]
+fn replay_header_marks_end_finished_and_restores_playing_after_step_back() {
+    for lang in [Lang::En, Lang::Ja] {
+        let record = sample_record();
+        let (width, height) = ui::minimum_terminal_size(record.size, false);
+        let mut app = App::new_replay(record, Duration::from_secs(1), false, false, lang);
+        app.on_key(key(KeyCode::End));
+        let finished = render(&app, width, height);
+        let finished_label = match lang {
+            Lang::En => "Finished",
+            Lang::Ja => "再生終了",
+        };
+        assert!(finished.contains(finished_label), "{finished}");
+        assert!(!finished.contains(Msg::Playing.text(lang)), "{finished}");
+
+        app.on_key(key(KeyCode::Left));
+        let stepped_back = render(&app, width, height);
+        assert!(stepped_back.contains(Msg::Playing.text(lang)), "{stepped_back}");
+        assert!(!stepped_back.contains(finished_label), "{stepped_back}");
+
+        let mut paused = App::new_replay(sample_record(), Duration::from_secs(1), true, false, lang);
+        paused.on_key(key(KeyCode::End));
+        let paused_at_end = render(&paused, width, height);
+        assert!(paused_at_end.contains(finished_label), "{paused_at_end}");
+        assert!(!paused_at_end.contains(Msg::Paused.text(lang)), "{paused_at_end}");
+    }
+}
+
+#[test]
+fn result_panel_remains_above_game_over_particles() {
+    let mut app = winning_app(Lang::En);
+    app.particles.push(Particle {
+        x: 50.0 / 69.0,
+        y: 9.0 / 24.0,
+        vx: 0.0,
+        vy: 0.0,
+        glyph: 'X',
+        color: (255, 0, 0),
+    });
+    let screen = render(&app, 69, 24);
+    assert!(screen.contains(Msg::HumanWins.text(Lang::En)), "{screen}");
 }
 
 #[test]
@@ -311,7 +550,14 @@ fn dump_screens() {
     for size in [9, 15, 19] {
         let app = App::new(size, Rule::Freestyle);
         let (width, height) = ui::minimum_terminal_size(size, false);
-        render(&app, width, height);
+        println!("--- title {size}x{size} ---\n{}", render(&app, width, height));
+    }
+    for lang in [Lang::En, Lang::Ja] {
+        let record = sample_record();
+        let (width, height) = ui::minimum_terminal_size(record.size, false);
+        let mut replay = App::new_replay(record, Duration::from_secs(1), true, false, lang);
+        replay.on_key(key(KeyCode::End));
+        println!("--- replay end {lang:?} ---\n{}", render(&replay, width, height));
     }
 }
 

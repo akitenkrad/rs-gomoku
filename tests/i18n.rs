@@ -23,7 +23,7 @@ fn every_message_is_non_empty_and_translated() {
         assert!(!ja.is_empty(), "missing Japanese text for {message:?}");
         assert_ne!(en, ja, "untranslated message: {message:?}");
     }
-    assert_eq!(seen.len(), 60, "Msg::ALL must contain every variant exactly once");
+    assert_eq!(seen.len(), 61, "Msg::ALL must contain every variant exactly once");
 }
 
 #[test]
