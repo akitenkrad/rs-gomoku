@@ -7,6 +7,7 @@ use crate::game::{Game, Outcome, Rule, Stone};
 
 const DIRECTIONS: [(isize, isize); 4] = [(1, 0), (0, 1), (1, 1), (1, -1)];
 const MATE_SCORE: i32 = 10_000_000;
+const OPPONENT_ATTACK_WEIGHT_PERCENT: i32 = 80;
 
 /// ある候補手を選んだ側から見た評価．
 ///
@@ -200,16 +201,57 @@ fn winning_moves_for(game: &Game, stone: Stone) -> Vec<usize> {
         .collect()
 }
 
+fn attack_balance(game: &Game) -> i32 {
+    let stone = game.stone_for(game.to_move);
+    let opponent = stone.other();
+    let mut best_attack = 0;
+    let mut best_opponent_attack = 0;
+    for cell in candidate_moves(game) {
+        best_attack = best_attack.max(pattern_score(patterns_after_move(game, cell, stone)));
+        best_opponent_attack = best_opponent_attack.max(pattern_score(patterns_after_move(game, cell, opponent)));
+    }
+    // 同じ強さの攻撃なら，先に着手できる手番側を高く評価する．
+    best_attack - best_opponent_attack * OPPONENT_ATTACK_WEIGHT_PERCENT / 100
+}
+
 #[derive(Clone, Copy, Debug)]
 struct Timeout;
 
-fn position_score(game: &Game) -> i32 {
+fn position_score(game: &Game, ply: u16) -> i32 {
     let stone = game.stone_for(game.to_move);
-    ordered_candidates(game, 8)
-        .into_iter()
-        .map(|cell| static_move_score(game, cell, stone) - static_move_score(game, cell, stone.other()) / 2)
-        .max()
-        .unwrap_or(0)
+    let opponent = stone.other();
+    let mut best_attack = 0;
+    let mut best_opponent_attack = 0;
+    let mut opponent_winning_point = None;
+    let mut opponent_winning_point_count = 0;
+
+    for cell in candidate_moves(game) {
+        let attack = patterns_after_move(game, cell, stone);
+        if attack.five > 0 {
+            return MATE_SCORE - i32::from(ply.saturating_add(1));
+        }
+        best_attack = best_attack.max(pattern_score(attack));
+
+        let opponent_attack = patterns_after_move(game, cell, opponent);
+        if opponent_attack.five > 0 {
+            opponent_winning_point = Some(cell);
+            opponent_winning_point_count += 1;
+        }
+        best_opponent_attack = best_opponent_attack.max(pattern_score(opponent_attack));
+    }
+
+    if opponent_winning_point_count >= 2 {
+        return -MATE_SCORE + i32::from(ply.saturating_add(2));
+    }
+    if let Some(forced_block) = opponent_winning_point {
+        // 勝点が一つだけなら，その強制ブロック後の局面を次手番側から評価して戻す．
+        let mut after_block = game.clone();
+        after_block.play(forced_block).expect("a winning point is a legal forced block");
+        return -attack_balance(&after_block);
+    }
+
+    let opponent_pressure = best_opponent_attack * OPPONENT_ATTACK_WEIGHT_PERCENT / 100;
+    best_attack - opponent_pressure
 }
 
 fn negamax(game: &Game, depth: u8, mut alpha: i32, beta: i32, deadline: Instant, candidate_limit: usize, ply: u16) -> Result<i32, Timeout> {
@@ -223,7 +265,7 @@ fn negamax(game: &Game, depth: u8, mut alpha: i32, beta: i32, deadline: Instant,
         });
     }
     if depth == 0 {
-        return Ok(position_score(game));
+        return Ok(position_score(game, ply));
     }
 
     let mut best = -MATE_SCORE;

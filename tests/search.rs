@@ -28,6 +28,15 @@ fn short_limits() -> SearchLimits {
     }
 }
 
+fn deterministic_limits(max_depth: u8) -> SearchLimits {
+    SearchLimits {
+        max_depth,
+        candidate_limit: 12,
+        time_limit: Duration::from_secs(30),
+        use_vcf: false,
+    }
+}
+
 #[test]
 fn pattern_classifier_distinguishes_the_required_shapes() {
     let size = 15;
@@ -136,6 +145,39 @@ fn normal_depth_search_defends_against_an_open_three() {
     let evaluations = evaluate_moves(&game, SearchLimits::normal());
     let selected = evaluations.first().unwrap().0;
     assert!([cell(15, 6, 7), cell(15, 10, 7)].contains(&selected), "{evaluations:?}");
+}
+
+#[test]
+fn every_search_depth_defends_against_an_open_three() {
+    let game = position(
+        &[cell(15, 0, 0), cell(15, 2, 0), cell(15, 4, 0)],
+        &[cell(15, 7, 7), cell(15, 8, 7), cell(15, 9, 7)],
+    );
+    let defences = [cell(15, 6, 7), cell(15, 10, 7)];
+
+    let fallback = evaluate_moves(&game, deterministic_limits(0));
+    assert!(defences.contains(&fallback.first().unwrap().0), "depth 0 fallback: {fallback:?}");
+
+    for depth in 1..=4 {
+        let evaluations = evaluate_moves(&game, deterministic_limits(depth));
+        let selected = evaluations.first().unwrap().0;
+        assert!(defences.contains(&selected), "depth {depth}: {evaluations:?}");
+    }
+}
+
+#[test]
+fn every_search_depth_attacks_first_when_both_sides_have_an_open_three() {
+    let game = position(
+        &[cell(15, 7, 7), cell(15, 8, 7), cell(15, 9, 7)],
+        &[cell(15, 7, 10), cell(15, 8, 10), cell(15, 9, 10)],
+    );
+    let attacks = [cell(15, 6, 7), cell(15, 10, 7)];
+
+    for depth in 1..=4 {
+        let evaluations = evaluate_moves(&game, deterministic_limits(depth));
+        let selected = evaluations.first().unwrap().0;
+        assert!(attacks.contains(&selected), "depth {depth}: {evaluations:?}");
+    }
 }
 
 #[test]
