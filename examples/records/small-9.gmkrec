@@ -1,0 +1,13 @@
+# rs-gomoku record v1
+size  = 9
+rule  = freestyle
+first = cpu
+human = Alice
+cpu   = Bob
+
+e5
+e4
+d5
+f5
+d4
+

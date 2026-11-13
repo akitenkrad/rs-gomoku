@@ -1,0 +1,21 @@
+# rs-gomoku record v1
+size  = 9
+rule  = standard
+first = human
+human = Alice
+cpu   = Bob
+
+a5
+a1
+b5
+c1
+c5
+e1
+d5
+g1
+f5
+i1
+e5
+b2
+h8
+

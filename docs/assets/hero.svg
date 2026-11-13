@@ -1,0 +1,199 @@
+<svg width="100%" viewBox="0 0 1200 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="hero-title hero-desc">
+  <title id="hero-title">rs-gomoku — Gomoku in your terminal</title>
+  <desc id="hero-desc">An eleven-line Gomoku board at turn thirteen, with black and white stones, candidate move heatmaps, top move evaluations, replay controls, and a game.gmkrec record.</desc>
+
+  <style>
+    .title,
+    .subtitle,
+    .eyebrow,
+    .label,
+    .small {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    .title { font-size: 51px; font-weight: 700; letter-spacing: -1.5px; fill: #2C2C2A; }
+    .subtitle { font-size: 15px; font-weight: 400; fill: #5F5E5A; }
+    .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 2.4px; fill: #0F6E56; }
+    .label { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; fill: #5F5E5A; }
+    .small { font-size: 11px; font-weight: 600; fill: #5F5E5A; }
+    .coord { font-size: 7px; font-weight: 600; fill: #5F5E5A; }
+    .move-rank { font-size: 10px; font-weight: 800; fill: #534AB7; }
+    .move-score { font-size: 11px; font-weight: 700; fill: #0F6E56; }
+    .file-name { font-size: 12px; font-weight: 600; fill: #2C2C2A; }
+
+    .terminal { fill: #F8F7F3; stroke: #5F5E5A; stroke-width: 1.2; }
+    .panel { fill: #F1EFE8; stroke: #C7C5BD; stroke-width: 0.8; }
+    .board { fill: #E7E0CB; stroke: #5F5E5A; stroke-width: 0.8; }
+    .board-grid { stroke: #5F5E5A; stroke-width: 0.7; opacity: 0.76; }
+    .panel-line { stroke: #C7C5BD; stroke-width: 0.8; }
+    .rule { stroke: #0F6E56; stroke-width: 2; stroke-linecap: round; }
+    .dot { fill: #5F5E5A; opacity: 0.5; }
+    .black-stone { fill: url(#blackStone); stroke: #2C2C2A; stroke-width: 0.7; }
+    .white-stone { fill: url(#whiteStone); stroke: #5F5E5A; stroke-width: 0.7; }
+    .last-move { fill: none; stroke: #534AB7; stroke-width: 1.2; }
+    .heat-high { fill: #534AB7; opacity: 0.28; }
+    .heat-mid { fill: #0F6E56; opacity: 0.24; }
+    .heat-low { fill: #5F5E5A; opacity: 0.18; }
+    .move-chip { fill: #F8F7F3; stroke: #C7C5BD; stroke-width: 0.7; }
+    .move-chip-best { fill: #EEEDFE; stroke: #534AB7; stroke-width: 0.8; }
+    .tick { stroke: #5F5E5A; stroke-width: 1.2; stroke-linecap: round; }
+    .tick-active { stroke: #0F6E56; stroke-width: 2; stroke-linecap: round; }
+    .file { fill: #F1EFE8; stroke: #5F5E5A; stroke-width: 1; stroke-linejoin: round; }
+
+    @media (prefers-color-scheme: dark) {
+      .title { fill: #E5E5E2; }
+      .subtitle { fill: #B4B2A9; }
+      .eyebrow { fill: #5DCAA5; }
+      .label,
+      .small,
+      .coord { fill: #C7C5BD; }
+      .move-rank { fill: #AFA9EC; }
+      .move-score { fill: #5DCAA5; }
+      .file-name { fill: #E5E5E2; }
+
+      .terminal { fill: #20201E; stroke: #B4B2A9; }
+      .panel { fill: #3A3A37; stroke: #5F5E5A; }
+      .board { fill: #39362F; stroke: #B4B2A9; }
+      .board-grid { stroke: #B4B2A9; opacity: 0.68; }
+      .panel-line { stroke: #5F5E5A; }
+      .rule { stroke: #5DCAA5; }
+      .dot { fill: #B4B2A9; }
+      .black-stone { stroke: #AFA9EC; }
+      .white-stone { stroke: #C7C5BD; }
+      .last-move { stroke: #AFA9EC; }
+      .heat-high { fill: #AFA9EC; opacity: 0.32; }
+      .heat-mid { fill: #5DCAA5; opacity: 0.28; }
+      .heat-low { fill: #B4B2A9; opacity: 0.2; }
+      .move-chip { fill: #282826; stroke: #5F5E5A; }
+      .move-chip-best { fill: #3C3489; stroke: #AFA9EC; }
+      .tick { stroke: #B4B2A9; }
+      .tick-active { stroke: #5DCAA5; }
+      .file { fill: #3A3A37; stroke: #B4B2A9; }
+    }
+  </style>
+
+  <defs>
+    <radialGradient id="blackStone" cx="34%" cy="28%" r="72%">
+      <stop offset="0" stop-color="#77756F"/>
+      <stop offset="0.42" stop-color="#3B3B39"/>
+      <stop offset="1" stop-color="#191918"/>
+    </radialGradient>
+    <radialGradient id="whiteStone" cx="34%" cy="28%" r="72%">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="0.58" stop-color="#F1EFE8"/>
+      <stop offset="1" stop-color="#C7C5BD"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Title block -->
+  <text class="eyebrow" x="50" y="100">TERMINAL STRATEGY GAME</text>
+  <text class="title" x="46" y="166">rs-gomoku</text>
+  <text class="subtitle" x="50" y="204">Gomoku in your terminal — any board size,</text>
+  <text class="subtitle" x="50" y="226">play, analyse, replay</text>
+  <path class="rule" d="M50 246 H410"/>
+
+  <!-- Terminal frame -->
+  <rect class="terminal" x="458" y="28" width="702" height="304" rx="14"/>
+  <path class="panel-line" d="M458 74 H1160"/>
+  <circle class="dot" cx="482" cy="51" r="4"/>
+  <circle class="dot" cx="498" cy="51" r="4"/>
+  <circle class="dot" cx="514" cy="51" r="4"/>
+  <text class="label" x="543" y="55">RS-GOMOKU · ANALYSE</text>
+  <text class="small mono" x="1128" y="55" text-anchor="end">turn 13 · black</text>
+
+  <!-- Eleven-line board -->
+  <rect class="panel" x="480" y="90" width="374" height="166" rx="8"/>
+  <text class="label" x="496" y="104">BOARD · 11 × 11</text>
+  <rect class="board" x="518" y="119" width="136" height="128" rx="4"/>
+
+  <!-- Coordinate labels -->
+  <text class="coord mono" x="521" y="116" text-anchor="middle">a</text>
+  <text class="coord mono" x="534" y="116" text-anchor="middle">b</text>
+  <text class="coord mono" x="547" y="116" text-anchor="middle">c</text>
+  <text class="coord mono" x="560" y="116" text-anchor="middle">d</text>
+  <text class="coord mono" x="573" y="116" text-anchor="middle">e</text>
+  <text class="coord mono" x="586" y="116" text-anchor="middle">f</text>
+  <text class="coord mono" x="599" y="116" text-anchor="middle">g</text>
+  <text class="coord mono" x="612" y="116" text-anchor="middle">h</text>
+  <text class="coord mono" x="625" y="116" text-anchor="middle">i</text>
+  <text class="coord mono" x="638" y="116" text-anchor="middle">j</text>
+  <text class="coord mono" x="651" y="116" text-anchor="middle">k</text>
+  <text class="coord mono" x="513" y="126" text-anchor="end">1</text>
+  <text class="coord mono" x="513" y="138" text-anchor="end">2</text>
+  <text class="coord mono" x="513" y="150" text-anchor="end">3</text>
+  <text class="coord mono" x="513" y="162" text-anchor="end">4</text>
+  <text class="coord mono" x="513" y="174" text-anchor="end">5</text>
+  <text class="coord mono" x="513" y="186" text-anchor="end">6</text>
+  <text class="coord mono" x="513" y="198" text-anchor="end">7</text>
+  <text class="coord mono" x="513" y="210" text-anchor="end">8</text>
+  <text class="coord mono" x="513" y="222" text-anchor="end">9</text>
+  <text class="coord mono" x="513" y="234" text-anchor="end">10</text>
+  <text class="coord mono" x="513" y="246" text-anchor="end">11</text>
+
+  <!-- Grid intersections: x 521..651, y 123..243 -->
+  <path class="board-grid" d="M521 123V243 M534 123V243 M547 123V243 M560 123V243 M573 123V243 M586 123V243 M599 123V243 M612 123V243 M625 123V243 M638 123V243 M651 123V243"/>
+  <path class="board-grid" d="M521 123H651 M521 135H651 M521 147H651 M521 159H651 M521 171H651 M521 183H651 M521 195H651 M521 207H651 M521 219H651 M521 231H651 M521 243H651"/>
+
+  <!-- Candidate evaluation heatmap -->
+  <circle class="heat-high" cx="612" cy="171" r="6.4"/>
+  <circle class="heat-mid" cx="573" cy="207" r="6"/>
+  <circle class="heat-mid" cx="625" cy="171" r="5.6"/>
+  <circle class="heat-low" cx="560" cy="147" r="5.3"/>
+  <circle class="heat-low" cx="638" cy="207" r="5"/>
+
+  <!-- Thirteen stones: seven black, six white -->
+  <circle class="black-stone" cx="586" cy="183" r="5.4"/>
+  <circle class="white-stone" cx="586" cy="171" r="5.4"/>
+  <circle class="black-stone" cx="573" cy="183" r="5.4"/>
+  <circle class="white-stone" cx="599" cy="183" r="5.4"/>
+  <circle class="black-stone" cx="599" cy="195" r="5.4"/>
+  <circle class="white-stone" cx="573" cy="195" r="5.4"/>
+  <circle class="black-stone" cx="560" cy="171" r="5.4"/>
+  <circle class="white-stone" cx="612" cy="183" r="5.4"/>
+  <circle class="black-stone" cx="612" cy="207" r="5.4"/>
+  <circle class="white-stone" cx="560" cy="195" r="5.4"/>
+  <circle class="black-stone" cx="586" cy="159" r="5.4"/>
+  <circle class="white-stone" cx="599" cy="171" r="5.4"/>
+  <circle class="black-stone" cx="625" cy="183" r="5.4"/>
+  <circle class="last-move" cx="625" cy="183" r="7.2"/>
+
+  <!-- Top move panel -->
+  <rect class="panel" x="870" y="90" width="264" height="166" rx="8"/>
+  <text class="label" x="886" y="112">TOP MOVES</text>
+
+  <rect class="move-chip-best" x="886" y="122" width="232" height="24" rx="5"/>
+  <text class="move-rank mono" x="898" y="138">1</text>
+  <text class="small mono" x="920" y="138">h5</text>
+  <text class="move-score mono" x="1103" y="138" text-anchor="end">+480</text>
+
+  <rect class="move-chip" x="886" y="151" width="232" height="24" rx="5"/>
+  <text class="move-rank mono" x="898" y="167">2</text>
+  <text class="small mono" x="920" y="167">e8</text>
+  <text class="move-score mono" x="1103" y="167" text-anchor="end">+220</text>
+
+  <rect class="move-chip" x="886" y="180" width="232" height="24" rx="5"/>
+  <text class="move-rank mono" x="898" y="196">3</text>
+  <text class="small mono" x="920" y="196">i5</text>
+  <text class="move-score mono" x="1103" y="196" text-anchor="end">+165</text>
+
+  <rect class="move-chip" x="886" y="209" width="232" height="24" rx="5"/>
+  <text class="move-rank mono" x="898" y="225">4</text>
+  <text class="small mono" x="920" y="225">d3</text>
+  <text class="move-score mono" x="1103" y="225" text-anchor="end">+92</text>
+
+  <!-- Replay strip: header and playback both show turn thirteen -->
+  <rect class="panel" x="480" y="270" width="454" height="42" rx="8"/>
+  <text class="small mono" x="497" y="296">▶ 13/18</text>
+  <path class="tick-active" d="M576 282V298 M596 282V298 M616 282V298 M636 282V298 M656 282V298 M676 282V298 M696 282V298 M716 282V298 M736 282V298 M756 282V298 M776 282V298 M796 282V298 M816 282V298"/>
+  <path class="tick" d="M836 282V298 M856 282V298 M876 282V298 M896 282V298 M916 282V298"/>
+  <path class="tick-active" d="M576 305H816"/>
+
+  <!-- Record file -->
+  <rect class="panel" x="950" y="270" width="184" height="42" rx="8"/>
+  <path class="file" d="M966 277H981L989 285V305H966Z M981 277V285H989"/>
+  <path class="panel-line" d="M971 291H984 M971 297H984"/>
+  <text class="file-name mono" x="999" y="297">game.gmkrec</text>
+</svg>

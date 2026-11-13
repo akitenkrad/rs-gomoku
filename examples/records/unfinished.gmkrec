@@ -1,0 +1,12 @@
+# rs-gomoku record v1
+size  = 15
+rule  = freestyle
+first = human
+human = あなた
+cpu   = CPU
+
+h8
+i8
+h9
+i9
+

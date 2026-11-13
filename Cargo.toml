@@ -1,0 +1,13 @@
+[package]
+name = "rs-gomoku"
+version = "0.1.0"
+edition = "2024"
+description = "A terminal Gomoku game with variable board sizes"
+license = "MIT"
+repository = "https://github.com/akitenkrad/rs-gomoku"
+readme = "README.md"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+ratatui = "0.30"
+
